@@ -200,39 +200,40 @@
             });
 
             // Draw nodes with flags
-            developers.forEach(dev => {
-                const positions = nodePositions.get(dev.developer_id);
-                Object.entries(positions).forEach(([axis, pos]) => {
-                    const countryCode = getCountryCode(dev.country); // Convert country name to 2-letter code
-                    const flagUrl = countryCode 
-                        ? `https://flagcdn.com/16x12/${countryCode.toLowerCase()}.png` 
-                        : 'https://flagcdn.com/16x12/un.png'; // Fallback UN flag
+           // Draw nodes with flags
+developers.forEach(dev => {
+    const positions = nodePositions.get(dev.developer_id);
+    Object.entries(positions).forEach(([axis, pos]) => {
+        const countryCode = getCountryCode(dev.country); // Convert country name to 2-letter code
+        const flagUrl = countryCode 
+            ? `https://flagcdn.com/16x12/${countryCode.toLowerCase()}.png` 
+            : 'https://flagcdn.com/16x12/un.png'; // Fallback UN flag
 
-                    const node = g.append('g')
-                        .attr('transform', `translate(${pos.x - 8}, ${pos.y - 8})`); // Center 16x12 flag
+        const node = g.append('g')
+            .attr('transform', `translate(${pos.x - 8}, ${pos.y - 8})`); // Center 16x12 flag
 
-                    node.append('image')
-                        .attr('xlink:href', flagUrl)
-                        .attr('width', 16)
-                        .attr('height', 12)
-                        .attr('title', `${dev.developer_id || 'Unknown'}\nCountry: ${dev.country || 'Unknown'}\nBetweenness: ${(dev.betweenness || 0).toFixed(4)}\nIn-degree: ${dev.in_degree || 0}\nOut-degree: ${dev.out_degree || 0}`);
+        node.append('image')
+            .attr('xlink:href', flagUrl)
+            .attr('width', 16)
+            .attr('height', 12)
+            .attr('title', `${dev.developer_id || 'Unknown'}\nCountry: ${dev.country || 'Unknown'}\nBetweenness: ${(dev.betweenness || 0).toFixed(4)}\nIn-degree: ${dev.in_degree || 0}\nOut-degree: ${dev.out_degree || 0}`);
 
-                    // Add label
-                    node.append('text')
-                        .attr('class', 'node-label')
-                        .attr('x', 18)
-                        .attr('y', 6)
-                        .text(dev.developer_id)
-                        .attr('fill', 'black');
+        // Add label with both developer_id and country
+        node.append('text')
+            .attr('class', 'node-label')
+            .attr('x', 18)  // Position to the right of the flag
+            .attr('y', 6)   // Vertically centered relative to flag
+            .text(`${dev.developer_id || 'Unknown'} - ${dev.country || 'Unknown'}`) // Show both ID and country
+            .attr('fill', 'black');
 
-                    // Show label on hover
-                    node.on('mouseover', function() {
-                        d3.select(this).select('.node-label').style('display', 'block');
-                    }).on('mouseout', function() {
-                        d3.select(this).select('.node-label').style('display', 'none');
-                    });
-                });
-            });
+        // Show label on hover
+        node.on('mouseover', function() {
+            d3.select(this).select('.node-label').style('display', 'block');
+        }).on('mouseout', function() {
+            d3.select(this).select('.node-label').style('display', 'none');
+        });
+    });
+});
 
             // Add legend
             const legend = g.append('g')
