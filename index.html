@@ -55,7 +55,7 @@
         async function loadAndDraw() {
             try {
                 const [devResponse, edgeResponse] = await Promise.all([
-                    fetch('./developer_network_countrybetweenness.csv'),
+                    fetch('./network.csv'),
                     fetch('./network_edges.csv')
                 ]);
 
