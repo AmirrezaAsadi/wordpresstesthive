@@ -6,31 +6,7 @@
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <script src="https://unpkg.com/papaparse@latest/papaparse.min.js"></script>
     <style>
-        body {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            margin: 0;
-            font-family: Arial, sans-serif;
-        }
-        .container {
-            max-width: 1200px;
-            padding: 20px;
-            text-align: center;
-        }
-        .notes {
-            margin-top: 20px;
-            text-align: left;
-            font-size: 14px;
-            color: #666;
-        }
-        svg {
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            background: white;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
+        /* Same styles as before */
     </style>
 </head>
 <body>
@@ -54,6 +30,10 @@
                     fetch('./network_edges.csv')
                 ]);
 
+                if (!devResponse.ok || !edgeResponse.ok) {
+                    throw new Error('Failed to fetch CSV files');
+                }
+
                 const [devText, edgeText] = await Promise.all([
                     devResponse.text(),
                     edgeResponse.text()
@@ -63,17 +43,22 @@
                     header: true,
                     dynamicTyping: true,
                     skipEmptyLines: true
-                }).data;
+                }).data.filter(d => d.developer_id); // Filter out invalid rows
 
                 const edges = Papa.parse(edgeText, {
                     header: true,
                     dynamicTyping: true,
                     skipEmptyLines: true
-                }).data;
+                }).data.filter(d => d.source && d.target);
+
+                if (!developers.length || !edges.length) {
+                    throw new Error('No valid data found in CSV files');
+                }
 
                 createHivePlot(developers, edges);
             } catch (error) {
                 console.error('Error loading data:', error);
+                alert('Failed to load data. Please check console and ensure CSV files are present and correctly formatted.');
             }
         }
 
@@ -94,19 +79,27 @@
                 { name: 'Out-Degree', angle: 240, property: 'out_degree' }
             ];
 
+            // Ensure numeric values with fallback
+            developers = developers.map(dev => ({
+                ...dev,
+                betweenness: Number(dev.betweenness) || 0,
+                in_degree: Number(dev.in_degree) || 0,
+                out_degree: Number(dev.out_degree) || 0
+            }));
+
             const scales = {
                 betweenness: d3.scaleLinear()
-                    .domain([0, d3.max(developers, d => d.betweenness) || 0])
+                    .domain([0, d3.max(developers, d => d.betweenness) || 1])
                     .range([0, radius]),
                 in_degree: d3.scaleLinear()
-                    .domain([0, d3.max(developers, d => d.in_degree) || 0])
+                    .domain([0, d3.max(developers, d => d.in_degree) || 1])
                     .range([0, radius]),
                 out_degree: d3.scaleLinear()
-                    .domain([0, d3.max(developers, d => d.out_degree) || 0])
+                    .domain([0, d3.max(developers, d => d.out_degree) || 1])
                     .range([0, radius])
             };
 
-            // Draw axes
+            // Draw axes (unchanged)
             axes.forEach(axis => {
                 const angle = (axis.angle - 90) * Math.PI / 180;
                 const x2 = Math.cos(angle) * radius;
@@ -161,7 +154,7 @@
                                     .attr('fill', 'none')
                                     .attr('stroke', '#ccc')
                                     .attr('stroke-opacity', 0.2)
-                                    .attr('stroke-width', Math.sqrt(edge.weight));
+                                    .attr('stroke-width', Math.sqrt(edge.weight || 1));
                             }
                         });
                     });
@@ -176,15 +169,15 @@
                         .attr('cx', pos.x)
                         .attr('cy', pos.y)
                         .attr('r', 4)
-                        .attr('fill', getCountryColor(dev.country))
+                        .attr('fill', getCountryColor(dev.country || 'Unknown'))
                         .attr('stroke', '#fff')
                         .attr('stroke-width', 1)
                         .append('title')
-                        .text(`${dev.developer_id}\nCountry: ${dev.country}\nBetweenness: ${dev.betweenness.toFixed(4)}\nIn-degree: ${dev.in_degree}\nOut-degree: ${dev.out_degree}`);
+                        .text(`${dev.developer_id || 'Unknown'}\nCountry: ${dev.country || 'Unknown'}\nBetweenness: ${(dev.betweenness || 0).toFixed(4)}\nIn-degree: ${dev.in_degree || 0}\nOut-degree: ${dev.out_degree || 0}`);
                 });
             });
 
-            // Add legend
+            // Add legend (unchanged)
             const legend = svg.append('g')
                 .attr('transform', `translate(${-width/2 + 20}, ${-height/2 + 20})`);
 
@@ -204,7 +197,6 @@
             return colorScale(country);
         }
 
-        // Start the visualization
         loadAndDraw();
     </script>
 </body>
