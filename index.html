@@ -6,7 +6,36 @@
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <script src="https://unpkg.com/papaparse@latest/papaparse.min.js"></script>
     <style>
-        /* Same styles as before */
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            font-family: Arial, sans-serif;
+        }
+        .container {
+            max-width: 1200px;
+            padding: 20px;
+            text-align: center;
+        }
+        .notes {
+            margin-top: 20px;
+            text-align: left;
+            font-size: 14px;
+            color: #666;
+        }
+        svg {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .node-label {
+            display: none;
+            font-size: 10px;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>
@@ -16,9 +45,9 @@
         <div class="notes">
             <p>• Axes represent Betweenness, In-Degree, and Out-Degree</p>
             <p>• Node position on each axis shows the metric value</p>
-            <p>• Node color represents country</p>
+            <p>• Node flag represents country</p>
             <p>• Edge thickness shows review frequency</p>
-            <p>• Hover over nodes for detailed information</p>
+            <p>• Zoom in/out with mouse wheel, pan by dragging</p>
         </div>
     </div>
 
@@ -43,7 +72,7 @@
                     header: true,
                     dynamicTyping: true,
                     skipEmptyLines: true
-                }).data.filter(d => d.developer_id); // Filter out invalid rows
+                }).data.filter(d => d.developer_id);
 
                 const edges = Papa.parse(edgeText, {
                     header: true,
@@ -58,7 +87,7 @@
                 createHivePlot(developers, edges);
             } catch (error) {
                 console.error('Error loading data:', error);
-                alert('Failed to load data. Please check console and ensure CSV files are present and correctly formatted.');
+                alert('Failed to load data. Check console and CSV files.');
             }
         }
 
@@ -69,9 +98,18 @@
 
             const svg = d3.select('#hive-plot')
                 .attr('width', width)
-                .attr('height', height)
-                .append('g')
+                .attr('height', height);
+
+            const g = svg.append('g')
                 .attr('transform', `translate(${width/2},${height/2})`);
+
+            // Add zoom behavior
+            const zoom = d3.zoom()
+                .scaleExtent([0.5, 10]) // Min and max zoom levels
+                .on('zoom', (event) => {
+                    g.attr('transform', event.transform);
+                });
+            svg.call(zoom);
 
             const axes = [
                 { name: 'Betweenness', angle: 0, property: 'betweenness' },
@@ -79,12 +117,12 @@
                 { name: 'Out-Degree', angle: 240, property: 'out_degree' }
             ];
 
-            // Ensure numeric values with fallback
             developers = developers.map(dev => ({
                 ...dev,
                 betweenness: Number(dev.betweenness) || 0,
                 in_degree: Number(dev.in_degree) || 0,
-                out_degree: Number(dev.out_degree) || 0
+                out_degree: Number(dev.out_degree) || 0,
+                country: dev.country || 'Unknown'
             }));
 
             const scales = {
@@ -99,13 +137,13 @@
                     .range([0, radius])
             };
 
-            // Draw axes (unchanged)
+            // Draw axes
             axes.forEach(axis => {
                 const angle = (axis.angle - 90) * Math.PI / 180;
                 const x2 = Math.cos(angle) * radius;
                 const y2 = Math.sin(angle) * radius;
 
-                svg.append('line')
+                g.append('line')
                     .attr('x1', 0)
                     .attr('y1', 0)
                     .attr('x2', x2)
@@ -113,7 +151,7 @@
                     .attr('stroke', '#999')
                     .attr('stroke-width', 2);
 
-                svg.append('text')
+                g.append('text')
                     .attr('x', Math.cos(angle) * (radius + 20))
                     .attr('y', Math.sin(angle) * (radius + 20))
                     .attr('text-anchor', 'middle')
@@ -149,7 +187,7 @@
                     Object.entries(sourcePos).forEach(([sourceAxis, sourceCoord]) => {
                         Object.entries(targetPos).forEach(([targetAxis, targetCoord]) => {
                             if (sourceAxis !== targetAxis) {
-                                svg.append('path')
+                                g.append('path')
                                     .attr('d', `M ${sourceCoord.x} ${sourceCoord.y} Q 0 0 ${targetCoord.x} ${targetCoord.y}`)
                                     .attr('fill', 'none')
                                     .attr('stroke', '#ccc')
@@ -161,29 +199,48 @@
                 }
             });
 
-            // Draw nodes
+            // Draw nodes with flags
             developers.forEach(dev => {
                 const positions = nodePositions.get(dev.developer_id);
                 Object.entries(positions).forEach(([axis, pos]) => {
-                    svg.append('circle')
-                        .attr('cx', pos.x)
-                        .attr('cy', pos.y)
-                        .attr('r', 4)
-                        .attr('fill', getCountryColor(dev.country || 'Unknown'))
-                        .attr('stroke', '#fff')
-                        .attr('stroke-width', 1)
-                        .append('title')
-                        .text(`${dev.developer_id || 'Unknown'}\nCountry: ${dev.country || 'Unknown'}\nBetweenness: ${(dev.betweenness || 0).toFixed(4)}\nIn-degree: ${dev.in_degree || 0}\nOut-degree: ${dev.out_degree || 0}`);
+                    const countryCode = getCountryCode(dev.country); // Convert country name to 2-letter code
+                    const flagUrl = countryCode 
+                        ? `https://flagcdn.com/16x12/${countryCode.toLowerCase()}.png` 
+                        : 'https://flagcdn.com/16x12/un.png'; // Fallback UN flag
+
+                    const node = g.append('g')
+                        .attr('transform', `translate(${pos.x - 8}, ${pos.y - 8})`); // Center 16x12 flag
+
+                    node.append('image')
+                        .attr('xlink:href', flagUrl)
+                        .attr('width', 16)
+                        .attr('height', 12)
+                        .attr('title', `${dev.developer_id || 'Unknown'}\nCountry: ${dev.country || 'Unknown'}\nBetweenness: ${(dev.betweenness || 0).toFixed(4)}\nIn-degree: ${dev.in_degree || 0}\nOut-degree: ${dev.out_degree || 0}`);
+
+                    // Add label
+                    node.append('text')
+                        .attr('class', 'node-label')
+                        .attr('x', 18)
+                        .attr('y', 6)
+                        .text(dev.developer_id)
+                        .attr('fill', 'black');
+
+                    // Show label on hover
+                    node.on('mouseover', function() {
+                        d3.select(this).select('.node-label').style('display', 'block');
+                    }).on('mouseout', function() {
+                        d3.select(this).select('.node-label').style('display', 'none');
+                    });
                 });
             });
 
-            // Add legend (unchanged)
-            const legend = svg.append('g')
+            // Add legend
+            const legend = g.append('g')
                 .attr('transform', `translate(${-width/2 + 20}, ${-height/2 + 20})`);
 
             legend.append('text')
                 .attr('y', 0)
-                .text('Node color represents country')
+                .text('Node flag represents country')
                 .attr('font-size', '12px');
 
             legend.append('text')
@@ -192,9 +249,20 @@
                 .attr('font-size', '12px');
         }
 
-        function getCountryColor(country) {
-            const colorScale = d3.scaleOrdinal(d3.schemeCategory10);
-            return colorScale(country);
+        // Simple country name to ISO 3166-1 alpha-2 code mapping (expand as needed)
+        function getCountryCode(country) {
+            const countryCodes = {
+                'United States': 'US',
+                'United Kingdom': 'GB',
+                'Germany': 'DE',
+                'France': 'FR',
+                'Japan': 'JP',
+                'China': 'CN',
+                'India': 'IN',
+                // Add more mappings here based on your data
+                'Unknown': 'UN'
+            };
+            return countryCodes[country] || 'UN'; // Default to UN flag if not found
         }
 
         loadAndDraw();
